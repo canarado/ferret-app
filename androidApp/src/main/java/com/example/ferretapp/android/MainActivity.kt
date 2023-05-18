@@ -1,10 +1,7 @@
 package com.example.ferretapp.android
 
-import android.app.DownloadManager.Query
 import android.content.Context
 import android.content.SharedPreferences
-import android.database.Cursor
-import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
@@ -16,7 +13,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,13 +23,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.example.ferretapp.Greeting
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import io.ktor.client.HttpClient
@@ -44,13 +35,12 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.serialization.kotlinx.json.json
-import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.io.File
 
 
-val API_URL_SUBMIT = "https://ferret-api.canarado.xyz/api/submit"
+const val API_URL_SUBMIT: String = "https://ferret-api.canarado.xyz/api/submit"
 class MainActivity : ComponentActivity() {
 
     private val httpClient = HttpClient {
@@ -193,7 +183,7 @@ fun ImageToUploadWithButton(httpClient: HttpClient, prefs: SharedPreferences) {
                     val path = cursor.getString(idx)
                     cursor.close()
 
-                    val res = coroutineScope.launch {
+                    coroutineScope.launch {
                         submitFerret(httpClient = httpClient, imagePath = path, token = "${prefs.getString("token", "")}")
                     }
 
