@@ -1,9 +1,15 @@
 package com.example.ferretapp.android
 
+import android.app.DownloadManager.Query
+import android.content.Context
+import android.content.SharedPreferences
+import android.database.Cursor
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.provider.MediaStore
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -26,13 +32,42 @@ import com.example.ferretapp.Greeting
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import io.ktor.client.HttpClient
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.forms.formData
+import io.ktor.client.request.forms.submitFormWithBinaryData
+import io.ktor.client.statement.HttpResponse
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
+import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.job
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import java.io.File
 
+
+val API_URL_SUBMIT = "https://ferret-api.canarado.xyz/api/submit"
 class MainActivity : ComponentActivity() {
+
+    private val httpClient = HttpClient {
+        install(ContentNegotiation) {
+            json(Json {
+                prettyPrint = true
+                isLenient = true
+                ignoreUnknownKeys = false
+            })
+        }
+    }
+
+    lateinit var shared : SharedPreferences
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        shared = getSharedPreferences("FerretToken", Context.MODE_PRIVATE)
 
         setContent {
             MyApplicationTheme {
@@ -51,11 +86,57 @@ class MainActivity : ComponentActivity() {
                             horizontalArrangement = Arrangement.SpaceEvenly,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            ImageToUploadWithButton()
+                            ImageToUploadWithButton(httpClient = httpClient, prefs = shared)
+                        }
+
+                        Spacer(modifier = Modifier.weight(1f))
+
+                        Row(
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column() {
+                                SetTokenTextAndButton(prefs = shared)
+                            }
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun SetTokenTextAndButton(prefs: SharedPreferences) {
+
+    var tokenState by remember { mutableStateOf("") }
+
+    val context = LocalContext.current
+
+    TextField(value = tokenState, onValueChange = {
+        tokenState = it
+    })
+    Row() {
+        Button(onClick = {
+            if(tokenState != "") {
+
+                val edit = prefs.edit()
+
+                edit.putString("token", tokenState)
+                edit.apply()
+
+                Toast.makeText(context, "Set API Token to $tokenState", Toast.LENGTH_SHORT).show()
+                tokenState = ""
+            }
+        }) {
+            Text(text = "Set Token")
+        }
+        Button(onClick = {
+            val token = prefs.getString("token", "")
+
+            Toast.makeText(context, "Current Token: $token", Toast.LENGTH_LONG).show()
+        }) {
+            Text(text = "See Token")
         }
     }
 }
@@ -83,17 +164,43 @@ fun OpenGalleryButton(imagePicker: ActivityResultLauncher<PickVisualMediaRequest
 }
 
 @Composable
-fun ImageToUploadWithButton() {
+fun ImageToUploadWithButton(httpClient: HttpClient, prefs: SharedPreferences) {
     
     var imageState by remember { mutableStateOf<Uri?>(null) }
+
+    val coroutineScope = rememberCoroutineScope();
 
     val imagePicker = rememberLauncherForActivityResult(contract = ActivityResultContracts.PickVisualMedia(), onResult = { uri -> imageState = uri})
     
     Column() {
+
+        val context = LocalContext.current
+
         if(imageState != null) {
+
+            val localuri = imageState
+
+            localuri ?: return
+
             AsyncImage(model = imageState, contentDescription = "Cute Ferret Picture")
             Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
-                Button(onClick = { /*TODO*/ }) {
+                Button(onClick = {
+                    // TODO
+
+                    val cursor = context.contentResolver.query(localuri, null, null, null, null)
+                    cursor!!.moveToFirst()
+                    val idx = cursor.getColumnIndex(MediaStore.Images.ImageColumns.DATA)
+                    val path = cursor.getString(idx)
+                    cursor.close()
+
+                    val res = coroutineScope.launch {
+                        submitFerret(httpClient = httpClient, imagePath = path, token = "${prefs.getString("token", "")}")
+                    }
+
+                    Toast.makeText(context, "Submitted ferret picture!", Toast.LENGTH_SHORT).show()
+
+                    imageState = null
+                }) {
                     Text(text = "Upload Image to API")
                 }
                 Button(onClick = { imageState = null }) {
@@ -105,4 +212,23 @@ fun ImageToUploadWithButton() {
             OpenGalleryButton(imagePicker = imagePicker)
         }
     }
+}
+@Throws(Exception::class)
+suspend fun submitFerret(httpClient: HttpClient, imagePath: String, token: String): HttpResponse {
+
+    val file = File(imagePath)
+
+    val res = httpClient.submitFormWithBinaryData(
+        url = "$API_URL_SUBMIT",
+        formData = formData {
+            append("description", "Ferret Picture")
+            append("file", file.readBytes(), Headers.build {
+                append(HttpHeaders.ContentType, "image/${file.extension}")
+                append(HttpHeaders.ContentDisposition, "filename=\"ferret.${file.extension}\"")
+            })
+            append("token", token)
+        }
+    )
+
+    return res
 }

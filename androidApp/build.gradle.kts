@@ -38,6 +38,8 @@ android {
     }
 }
 
+val ktorVersion = "2.2.4"
+
 dependencies {
     implementation(project(":shared"))
     implementation("androidx.compose.ui:ui:1.4.3")
@@ -50,4 +52,8 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.7.1")
     implementation("androidx.fragment:fragment:1.5.7")
     implementation("io.coil-kt:coil-compose:2.3.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.1")
+    implementation("io.ktor:ktor-client-core:$ktorVersion")
+    implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
 }
